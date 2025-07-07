@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Path Planning: A* vs Dijkstra</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1000px; 
+            margin: 40px auto; 
+            background: #fff; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+            padding: 40px;
+        }
+        h1 { 
+            text-align: center; 
+            color: #17496f; 
+            margin-bottom: 40px; 
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-label { 
+            color: #34495e; 
+            font-weight: 600; 
+            margin-bottom: 8px;
+        }
+        .form-control {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        .form-control:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+        }
+        .btn-success {
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+        }
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
+        }
+        .results { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 30px; 
+            margin-top: 40px; 
+            justify-content: center; 
+        }
+        .result-card { 
+            background: linear-gradient(145deg, #f8fafc, #ffffff); 
+            border-radius: 15px; 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1); 
+            padding: 25px; 
+            flex: 1 1 400px; 
+            min-width: 350px; 
+            max-width: 500px;
+            border: 1px solid rgba(52, 152, 219, 0.1);
+        }
+        .result-card h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .result-card img { 
+            width: 100%; 
+            height: auto;
+            border: 2px solid #e9ecef; 
+            border-radius: 10px; 
+            margin-top: 15px; 
+            transition: transform 0.3s ease;
+        }
+        .result-card img:hover {
+            transform: scale(1.02);
+        }
+        pre { 
+            background: linear-gradient(145deg, #f1f3f4, #ffffff); 
+            border-radius: 10px; 
+            padding: 20px; 
+            font-size: 14px; 
+            overflow-x: auto; 
+            border: 1px solid #e9ecef;
+            margin: 0;
+        }
+        .error { 
+            color: #e74c3c; 
+            font-weight: 600; 
+            margin-top: 20px; 
+            padding: 15px;
+            background: #fdf2f2;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+        }
+        .success-message {
+            color: #27ae60;
+            font-weight: 600;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f1f8e9;
+            border-radius: 8px;
+            border-left: 4px solid #27ae60;
+        }
+        .parameter-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+        }
+        .parameter-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .spinner-border {
+            color: #3498db;
+        }
+        @media (max-width: 768px) { 
+            .container { 
+                margin: 20px; 
+                padding: 20px; 
+            }
+            .result-card {
+                min-width: 100%;
+            }
+        }
+    </style>
+    <script>
+        function validateForm() {
+            // Get form values
+            const mapW = parseInt(document.querySelector('[name=map_width]').value);
+            const mapH = parseInt(document.querySelector('[name=map_height]').value);
+            const sx = parseInt(document.querySelector('[name=start_x]').value);
+            const sy = parseInt(document.querySelector('[name=start_y]').value);
+            const gx = parseInt(document.querySelector('[name=goal_x]').value);
+            const gy = parseInt(document.querySelector('[name=goal_y]').value);
+            const clearance = parseInt(document.querySelector('[name=clearance]').value);
+            const robotRadius = parseInt(document.querySelector('[name=robot_radius]').value);
+            
+            // Validate map bounds
+            if (sx < 0 || sx >= mapW || sy < 0 || sy >= mapH) {
+                alert('Start position must be within map bounds!\nX: 0-' + (mapW-1) + ', Y: 0-' + (mapH-1));
+                return false;
+            }
+            if (gx < 0 || gx >= mapW || gy < 0 || gy >= mapH) {
+                alert('Goal position must be within map bounds!\nX: 0-' + (mapW-1) + ', Y: 0-' + (mapH-1));
+                return false;
+            }
+            
+            // Validate start != goal
+            if (sx === gx && sy === gy) {
+                alert('Start and goal positions must be different!');
+                return false;
+            }
+            
+            // Validate reasonable clearance
+            const totalClearance = clearance + robotRadius;
+            if (totalClearance > Math.min(mapW, mapH) / 4) {
+                alert('Warning: Total clearance (' + totalClearance + ') is very large compared to map size.\nThis might make the problem unsolvable.');
+            }
+            
+            // Show loading indicator
+            document.querySelector('.loading').style.display = 'block';
+            document.querySelector('input[type="submit"]').disabled = true;
+            document.querySelector('input[type="submit"]').value = 'Processing...';
+            
+            return true;
+        }
+        
+        function updateMapBounds() {
+            const mapW = parseInt(document.querySelector('[name=map_width]').value) || 100;
+            const mapH = parseInt(document.querySelector('[name=map_height]').value) || 100;
+            
+            // Update max values for coordinate inputs
+            document.querySelector('[name=start_x]').max = mapW - 1;
+            document.querySelector('[name=start_y]').max = mapH - 1;
+            document.querySelector('[name=goal_x]').max = mapW - 1;
+            document.querySelector('[name=goal_y]').max = mapH - 1;
+        }
+        
+        window.onload = function() {
+            updateMapBounds();
+            document.querySelector('[name=map_width]').addEventListener('change', updateMapBounds);
+            document.querySelector('[name=map_height]').addEventListener('change', updateMapBounds);
+        };
+    </script>
+</head>
+<body>
+<div class="container">
+    <h1>🤖 Path Planning: A* vs Dijkstra</h1>
+    
+    <form method="post" onsubmit="return validateForm();">
+        <div class="parameter-section">
+            <h3>🗺️ Map Configuration</h3>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Map Width:</label>
+                    <input type="number" name="map_width" value="100" min="50" max="500" class="form-control" required>
+                    <small class="text-muted">Range: 50-500 pixels</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Map Height:</label>
+                    <input type="number" name="map_height" value="100" min="50" max="500" class="form-control" required>
+                    <small class="text-muted">Range: 50-500 pixels</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="parameter-section">
+            <h3>🤖 Robot Configuration</h3>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Obstacle Clearance:</label>
+                    <input type="number" name="clearance" value="2" min="0" max="20" class="form-control" required>
+                    <small class="text-muted">Safety margin around obstacles</small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Robot Radius:</label>
+                    <input type="number" name="robot_radius" value="2" min="1" max="20" class="form-control" required>
+                    <small class="text-muted">Robot size</small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Step Size:</label>
+                    <input type="number" name="step_size" value="5" min="1" max="20" class="form-control" required>
+                    <small class="text-muted">Movement distance per step</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="parameter-section">
+            <h3>🎯 Start Position</h3>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Start X:</label>
+                    <input type="number" name="start_x" value="5" min="0" max="99" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Start Y:</label>
+                    <input type="number" name="start_y" value="90" min="0" max="99" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Start Orientation (°):</label>
+                    <input type="number" name="start_theta" value="0" min="0" max="359" class="form-control" required>
+                    <small class="text-muted">0° = East, 90° = North</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="parameter-section">
+            <h3>🏁 Goal Position</h3>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Goal X:</label>
+                    <input type="number" name="goal_x" value="95" min="0" max="99" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Goal Y:</label>
+                    <input type="number" name="goal_y" value="10" min="0" max="99" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Goal Orientation (°):</label>
+                    <input type="number" name="goal_theta" value="0" min="0" max="359" class="form-control" required>
+                    <small class="text-muted">0° = East, 90° = North</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center">
+            <input type="submit" class="btn btn-success btn-lg" value="🚀 Run Path Planning Comparison">
+        </div>
+        
+        <div class="loading">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Running algorithms... This may take a few seconds.</p>
+        </div>
+    </form>
+
+    {% if error %}
+        <div class="error">
+            <strong>❌ Error:</strong> {{ error }}
+        </div>
+    {% endif %}
+
+    {% if result_img or stats %}
+    <div class="results">
+        {% if result_img %}
+        <div class="result-card">
+            <h2>📊 Algorithm Comparison Visualization</h2>
+            <img src="/static/{{ result_img }}" alt="Path Planning Comparison" loading="lazy">
+            <p class="text-center mt-3 text-muted">
+                <small>Blue areas: Obstacles | Cyan areas: Clearance zones | Green dots: Explored nodes | Red line: Optimal path</small>
+            </p>
+        </div>
+        {% endif %}
+
+        {% if stats and stats.astar and stats.dijkstra %}
+        <div class="result-card">
+            <h2>📈 Performance Metrics</h2>
+            <pre><strong>🔵 A* Algorithm:</strong>
+Nodes Explored: {{ "{:,}".format(stats.astar.nodes_explored) }}
+Execution Time: {{ "%.4f"|format(stats.astar.time_taken) }} seconds
+Path Cost: {{ "%.2f"|format(stats.astar.total_cost) }}
+Path Length: {{ stats.astar.path_length }} nodes
+
+<strong>🔴 Dijkstra's Algorithm:</strong>
+Nodes Explored: {{ "{:,}".format(stats.dijkstra.nodes_explored) }}
+Execution Time: {{ "%.4f"|format(stats.dijkstra.time_taken) }} seconds
+Path Cost: {{ "%.2f"|format(stats.dijkstra.total_cost) }}
+Path Length: {{ stats.dijkstra.path_length }} nodes
+
+<strong>🏆 Efficiency Comparison:</strong>
+{% if stats.dijkstra.nodes_explored > 0 and stats.astar.nodes_explored > 0 %}
+A* explored {{ "%.1f"|format(stats.dijkstra.nodes_explored / stats.astar.nodes_explored) }}x fewer nodes
+{% if stats.astar.time_taken > 0 %}
+A* was {{ "%.1f"|format(stats.dijkstra.time_taken / stats.astar.time_taken) }}x faster
+{% endif %}
+{% endif %}
+</pre>
+            {% if stats.astar.path_length > 0 and stats.dijkstra.path_length > 0 %}
+                {% if stats.astar.total_cost == stats.dijkstra.total_cost %}
+                <div class="success-message mt-3">
+                    <strong>✅ Both algorithms found optimal paths with identical costs!</strong>
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="mt-5 text-center text-muted">
+        <small>
+            <strong>Note:</strong> The map contains predefined rectangular and circular obstacles. 
+            Obstacles are scaled based on your map dimensions. 
+            Both algorithms guarantee optimal solutions when a path exists.
+        </small>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
