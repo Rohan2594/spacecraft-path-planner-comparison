@@ -29,9 +29,10 @@ A web-based simulation tool that compares **A\*** and **Dijkstra’s Algorithm**
 
 ## 📸 Screenshots
 
+![Figure_1](https://github.com/user-attachments/assets/222526fb-cd98-4b51-aa0c-d0408404850e)
+![WhatsApp Image 2025-06-30 at 10 08 05_69760c1b](https://github.com/user-attachments/assets/4e4efbd6-87c0-4a85-9dda-f6380d97f062)
 
 
----
 
 ## 🔧 Installation
 
